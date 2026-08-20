@@ -5,6 +5,7 @@ documents (pgvector similarity search), not the model's training data,
 and every response reports which chunks it was allowed to draw from.
 """
 
+import re
 from collections.abc import AsyncIterator
 from typing import TypedDict
 
@@ -18,12 +19,16 @@ from app.services.retrieval import retrieve_chunks
 litellm.drop_params = True
 
 TOP_K = 5
+CITATION_PATTERN = re.compile(r"\[(\d+)\]")
 
 SYSTEM_PROMPT = """You are a customer support agent. Answer ONLY using the numbered \
 sources below - if they don't contain the answer, say you don't know and suggest \
 the user rephrase or upload a more relevant document. Never use outside knowledge.
 
-Cite sources inline using [1], [2], etc. matching the source numbers.
+Cite sources inline using [1], [2], etc. matching the source numbers, but ONLY when \
+you actually use that source to answer. If the message is a greeting or small talk \
+unrelated to the sources, respond naturally and briefly without citing anything -
+never cite a source just because it exists.
 
 Sources:
 {sources}
@@ -74,8 +79,6 @@ async def _generate(state: SupportState) -> SupportState:
             writer({"token": word + " "})
         return state
 
-    writer({"citations": state["sources"]})
-
     if not state["sources"]:
         for word in NO_DOCUMENTS_MESSAGE.split(" "):
             writer({"token": word + " "})
@@ -88,6 +91,7 @@ async def _generate(state: SupportState) -> SupportState:
     system_prompt = SYSTEM_PROMPT.format(sources=sources_block)
     llm_messages = [{"role": "system", "content": system_prompt}, *state["messages"]]
 
+    full_reply = ""
     response = await litellm.acompletion(
         model="gpt-4.1-mini",
         messages=llm_messages,
@@ -97,7 +101,21 @@ async def _generate(state: SupportState) -> SupportState:
     async for chunk in response:
         delta = chunk.choices[0].delta.content
         if delta:
+            full_reply += delta
             writer({"token": delta})
+
+    # Only surface citations the model actually used - retrieval always returns
+    # its closest matches even for a greeting or off-topic message, so showing
+    # them unconditionally makes the agent look like it's citing things it
+    # never really used.
+    cited_indices = sorted({int(n) for n in CITATION_PATTERN.findall(full_reply)})
+    cited_sources = [
+        {**state["sources"][i - 1], "ref_number": i}
+        for i in cited_indices
+        if 0 < i <= len(state["sources"])
+    ]
+    if cited_sources:
+        writer({"citations": cited_sources})
 
     return state
 

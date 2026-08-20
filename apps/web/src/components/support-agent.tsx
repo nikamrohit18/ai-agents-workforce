@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 type Citation = {
@@ -25,6 +26,7 @@ type Citation = {
   chunk_index: number;
   document_id: string;
   similarity: number;
+  ref_number: number;
 };
 
 type Message = { role: "user" | "assistant"; content: string; citations?: Citation[] };
@@ -33,12 +35,12 @@ type Doc = { id: string; filename: string; uploaded_at: string; chunk_count: num
 
 function groupCitations(citations: Citation[]) {
   const byDoc = new Map<string, { filename: string; refs: number[] }>();
-  citations.forEach((c, i) => {
+  citations.forEach((c) => {
     const existing = byDoc.get(c.document_id);
     if (existing) {
-      existing.refs.push(i + 1);
+      existing.refs.push(c.ref_number);
     } else {
-      byDoc.set(c.document_id, { filename: c.filename, refs: [i + 1] });
+      byDoc.set(c.document_id, { filename: c.filename, refs: [c.ref_number] });
     }
   });
   return Array.from(byDoc.values());
@@ -228,7 +230,19 @@ export function SupportAgent() {
         </div>
 
         <ScrollArea className="flex-1">
-          {docsLoaded && docs.length === 0 ? (
+          {!docsLoaded ? (
+            <div className="flex flex-col gap-2 p-2">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-2 rounded-md px-2 py-2">
+                  <Skeleton className="size-7 shrink-0 rounded-md" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <Skeleton className="h-3.5 w-3/4" />
+                    <Skeleton className="h-2.5 w-1/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : docsLoaded && docs.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
               <div className="flex size-11 items-center justify-center rounded-full bg-primary/10">
                 <UploadCloud className="size-5 text-primary" />
