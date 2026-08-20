@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
 
-  const backendRes = await fetch(`${backendUrl}/agents/echo/stream`, {
+  const backendRes = await fetch(`${backendUrl}/agents/support/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, user_id: userId }),

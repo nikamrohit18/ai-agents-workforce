@@ -1,0 +1,12 @@
+Acme Cloud Storage - Refund Policy
+
+Acme Cloud Storage offers a 45-day money-back guarantee on all annual subscription plans.
+Monthly subscription plans are not eligible for refunds after the first 7 days of the billing cycle.
+
+To request a refund, email support@acmecloud.example with your account email and order ID.
+Refunds are processed within 5-10 business days to the original payment method.
+
+Enterprise plans (50+ seats) are covered by a separate contract and are non-refundable once
+the onboarding call has been completed, per the Enterprise Master Services Agreement.
+
+Storage overage charges are never refundable, since they reflect usage that already occurred.
