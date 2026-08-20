@@ -1,55 +1,104 @@
+<div align="center">
+
 # AI Agents Workforce
 
-A shared platform ("kernel") for shipping production-grade AI agents, one at a time. Every agent is a module built on top of the same auth, database, memory, and orchestration layer instead of a one-off throwaway demo.
+**A shared platform for shipping production-grade AI agents — one at a time.**
 
-Built as a portfolio + freelance product line: each agent ships polished, deployed, and documented well enough to (a) show a recruiter and (b) sell to a client.
+Auth, database, streaming, and orchestration are built once as a kernel. Every agent is a module on top of it, not a one-off throwaway demo.
 
-**Live:**
-- Frontend: https://web-rose-omega-72.vercel.app
-- Customer Support agent: https://web-rose-omega-72.vercel.app/dashboard/support
-- Backend API: https://api-indol-nu-61.vercel.app/health
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.14-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![LangGraph](https://img.shields.io/badge/LangGraph-agent%20orchestration-1C3C3C)](https://www.langchain.com/langgraph)
+[![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?logo=vercel)](https://vercel.com)
+[![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#license)
+
+[**Live demo**](https://web-rose-omega-72.vercel.app) &nbsp;·&nbsp; [Customer Support agent](https://web-rose-omega-72.vercel.app/dashboard/support) &nbsp;·&nbsp; [API health](https://api-indol-nu-61.vercel.app/health)
+
+</div>
+
+<br/>
+
+<img src="docs/screenshots/support-agent.jpg" alt="Customer Support agent answering a question with citations" width="100%" />
+
+## What this is
+
+A portfolio of AI agents that solve real business problems — customer support, lead generation, appointment booking, voice reception, insurance intake — all built on one shared platform instead of scattered one-off scripts. Every agent gets the same authentication, database, streaming pipeline, and LangGraph orchestration, so adding a new one is an afternoon of agent-specific work, not another few days of re-plumbing auth and infra.
+
+The first agent live today is a **Customer Support RAG agent**: upload a document, ask a question, get an answer grounded only in what you uploaded — with inline citations, never a hallucinated guess.
+
+## Features
+
+- **Real retrieval-augmented generation** — PDF/text upload → chunking → OpenAI embeddings → pgvector similarity search → cited, streamed answers
+- **Token-level streaming** end to end, from the LangGraph node through FastAPI (SSE) through Next.js to the browser
+- **Authenticated by default** — every page and API route is protected via Clerk, enforced in Next.js Proxy middleware, not left to convention
+- **One kernel, many agents** — an agent hub at `/dashboard` where each new agent is a card and a route, sharing the same auth/DB/orchestration layer
+- **Deployed, not just demoed** — both the frontend and the Python backend run as real Vercel Functions in production, verified with actual sign-ups and real documents, not just a passing build
+
+## Tech stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind, shadcn/ui | Modern React stack, fast to ship, deploys natively on Vercel |
+| Backend | FastAPI (Python) | Async-native, typed, the natural home for the AI/ML ecosystem |
+| Agent orchestration | LangGraph | Stateful, streamable, production-oriented multi-step agent graphs |
+| LLM access | LiteLLM | One interface across providers (OpenAI today, others without a rewrite) |
+| Vector search | Postgres + `pgvector` (HNSW index) | No separate vector DB to run or pay for at this scale |
+| Database | Neon (serverless Postgres) | Branching, autoscaling, zero server to manage |
+| Memory / cache | Upstash Redis | Serverless, pay-per-use |
+| Auth | Clerk | Drop-in auth with first-class Next.js middleware support |
+| Hosting | Vercel (Fluid Compute, both apps) | One platform for the Next.js frontend and the Python backend — SSE streaming, WebSockets, and long timeouts all work natively |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    User((Browser)) --> Web["Next.js 16 (apps/web)\nClerk auth + shadcn/ui"]
-    Web -->|"/api/* (auth-checked)"| API["FastAPI (apps/api)"]
+    User((Browser)) --> Web["Next.js 16\nClerk auth + shadcn/ui"]
+    Web -->|"/api/* (auth-checked)"| API["FastAPI"]
     API --> Graph["LangGraph agent graphs"]
-    Graph --> LLM["LLM providers via LiteLLM\n(Anthropic / OpenAI / ...)"]
+    Graph --> LLM["LLM + embeddings via LiteLLM"]
+    Graph --> Vec["pgvector similarity search"]
     Web --- Clerk[(Clerk)]
-    API --- PG[(Neon Postgres)]
+    API --- PG[(Neon Postgres + pgvector)]
     API --- Redis[(Upstash Redis)]
 ```
 
-- **Frontend**: Next.js 16 (App Router, Turbopack), TypeScript, Tailwind, shadcn/ui (Base UI), Clerk for auth. Deployed as a Vercel Function.
-- **API layer**: FastAPI, also deployed as a Vercel Function (Fluid Compute, Python runtime) — no separate backend host needed at this scale. Verifies the caller is authenticated, then proxies to the agent backend and streams the response back over SSE.
-- **Agent orchestration**: LangGraph. Every agent is a compiled graph. `echo` is the one-node walking-skeleton graph that proved the plumbing works; `support` is the first real agent - a `retrieve -> generate` graph grounded in pgvector search over the caller's own uploaded documents.
-- **LLM access**: LiteLLM as the provider gateway, so agents aren't hard-wired to one vendor.
-- **Data**: Neon Postgres (serverless, with `pgvector` + HNSW index for embeddings) for persistent state, Upstash Redis for memory/cache/rate-limiting.
-- **Auth**: Clerk, provisioned via the Vercel Marketplace, protecting both pages (`proxy.ts`) and API routes.
+Every agent is a compiled LangGraph graph living in `apps/api/app/agents/`. The Customer Support agent, for example, is a two-node `retrieve -> generate` graph: retrieve pulls the top-matching chunks from the caller's own documents via cosine similarity, generate streams an answer that can only cite what it was given.
 
-> Originally planned to split the backend onto Railway. Railway's free trial had expired by the time we deployed, and rather than add billing there, the FastAPI app moved onto Vercel's Python runtime instead — one platform, one bill, and it has enough headroom (300s timeout, WebSocket support, 5GB package limit) for everything through the RAG and voice agents. Revisit a dedicated host only if an agent needs a real persistent worker (e.g. Celery for long-running outreach sequences).
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/landing.jpg" alt="Landing page" width="100%" /></td>
+<td width="50%"><img src="docs/screenshots/agents-hub.jpg" alt="Agents hub" width="100%" /></td>
+</tr>
+<tr>
+<td align="center"><sub>Landing page</sub></td>
+<td align="center"><sub>Agent hub — every agent is a card, sharing one kernel</sub></td>
+</tr>
+</table>
 
 ## Repo structure
 
 ```
 apps/
-  web/    Next.js frontend (dashboard, auth, chat UI)
-  api/    FastAPI + LangGraph backend
+  web/    Next.js frontend — auth, agent hub, per-agent UIs
+  api/    FastAPI + LangGraph backend — one agent graph per file
 infra/
-  docker-compose.yml   local Postgres/Redis + api, for dev without cloud accounts
+  docker-compose.yml   local Postgres + Redis + API, no cloud accounts required
 docs/
+  screenshots/
 ```
 
-Future agents (RAG support bot, voice receptionist, SDR, insurance claims, multi-agent orchestrator) land as new graphs under `apps/api/app/agents/` and new routed pages under `apps/web/src/app/`, reusing this same kernel rather than starting a new repo each time.
+Each new agent adds a graph under `apps/api/app/agents/`, a route under `apps/web/src/app/dashboard/`, and a card on the hub — the auth, database, and streaming layers underneath are already there.
 
-## Local development
+## Getting started
+
+**Prerequisites**: Node 20+, Python 3.12+, a Neon Postgres URL, an Upstash Redis URL, Clerk keys, and an OpenAI API key (for the Customer Support agent's embeddings).
 
 **Frontend** (`apps/web`):
 ```bash
 npm install
-vercel env pull .env.local   # or copy .env.example and fill in manually
+cp .env.example .env.local   # or `vercel env pull .env.local` if linked to Vercel
 npm run dev
 ```
 
@@ -57,41 +106,30 @@ npm run dev
 ```bash
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt   # .venv/bin/pip on macOS/Linux
-cp .env.example .env   # fill in DATABASE_URL / REDIS_URL / an LLM key
+cp .env.example .env
+python scripts/migrate.py   # creates the pgvector schema
 .venv/Scripts/python -m uvicorn app.main:app --reload --port 8000
 ```
 
-Without an `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` set, the demo agent streams a canned explanation instead of a real model response — the graph, SSE plumbing, and auth all still work, so you can verify the whole stack before paying for a single token.
+Prefer containers? `docker compose -f infra/docker-compose.yml up` runs Postgres + Redis + the API locally with no cloud accounts (the frontend still needs its own Clerk project for auth).
 
-Prefer containers? `docker compose -f infra/docker-compose.yml up` runs Postgres + Redis + the API locally, no cloud accounts required (the frontend still needs its own Clerk/Vercel setup for auth).
+Without an `OPENAI_API_KEY`, the agents stay fully functional but respond with a clear "not configured" message instead of a real answer — the auth, streaming, and orchestration layers don't require paying for a single token to verify.
 
-## Status
+## Roadmap
 
-- [x] Auth (Clerk) wired into pages and API routes, enforced in `proxy.ts`
-- [x] Postgres (Neon) and Redis (Upstash) provisioned and connected
-- [x] FastAPI + LangGraph backend with a real streamed SSE agent response
-- [x] Next.js chat UI consuming the stream end to end (verified in-browser, not just compiled)
-- [x] Deployed to production (both apps on Vercel) — verified with a real sign-up + live chat, not just a green build
-- [x] **Customer Support RAG agent** — PDF/text upload, chunking, OpenAI embeddings, pgvector similarity search, cited answers. Verified end to end in production with a real document and a question only answerable from it.
-- [x] Agent hub at `/dashboard` (card grid, one entry per agent) - the pattern every future agent slots into
-- [ ] Auto-deploy on push — the Vercel CLI's `git connect` hit a monorepo detection quirk; connect each project (`web`, `api`) to this repo manually under **Project Settings -> Git** in the Vercel dashboard, then set **Root Directory** to `apps/web` / `apps/api` respectively. Two minutes, not worth CLI-fighting further.
-- [ ] Hybrid search / reranking / parent-child chunking for the support agent — current retrieval is plain cosine similarity, good enough to prove the pattern, worth revisiting before selling it
+The kernel and the Customer Support agent are live. Planned next, in no particular committed order:
 
-**Known gotcha worth remembering**: env vars copied between `.env` files and `vercel env add` via shell variable substitution can silently pick up stray quote characters and get stored as an empty/invalid value on Vercel - it won't show up locally, only in production, and `vercel env pull` doesn't reliably reveal it either (it appears to mask sensitive values). Hit this with `DATABASE_URL` and had to remove + re-add via stdin. If a Vercel deployment behaves differently from local for no obvious reason, suspect this first.
-
-## Roadmap (full-time pace, ~8-9h/day)
-
-This is the honest version, not the marketing version. At sustained full-time effort the platform-plus-five-agents portfolio compresses from ~8-9 months (part-time) to roughly **10-11 weeks**. That pace is genuinely aggressive — there's no slack in it for the inevitable surprise (a flaky third-party API, a broken SDK upgrade like the Base UI `asChild` change we hit on day one). Treat the weekly boundaries as targets, not guarantees.
-
-| Weeks | Deliverable | Status |
-|---|---|---|
-| 1-2 | Kernel + **Customer Support RAG agent** — auth, DB, streaming, upload, chunking, embeddings, pgvector, citations | **Done** |
-| 3-4 | **Voice Receptionist + missed-call text-back** — Twilio, Deepgram STT, Calendar booking, SMS confirmation | Next. Highest-$ freelance category right now (SMB clinics/salons/contractors pay $99-299/mo for this today). Likely the first agent that lives on the Hostinger VPS instead of Vercel, since Twilio's real-time audio wants a persistent connection, not a serverless function |
-| 5-6 | **AI SDR / Lead-Gen agent** — research, scoring, personalized outreach, HubSpot sync, CSV export | Real B2B budget line; demonstrates multi-step agent chains, not just chat |
-| 7-8 | **Insurance Claims Intake & Triage** (flagship) — OCR, fraud scoring, policy lookup, mandatory human-in-loop approval | The one project nobody else's portfolio has; grounded in real domain expertise, not generic |
-| 9-10 | **Multi-agent orchestration** — wire Reception -> Sales -> CRM -> Calendar -> Analytics through a LangGraph supervisor | Built from parts already shipped, not from scratch; this is the flagship recruiters remember |
-| 11 | Polish pass: Langfuse + Sentry across every repo, architecture diagrams, README pass, portfolio site, all demo videos; point `agents.rohitnikam.tech` at the hub | Unfinished polish is what makes a portfolio look unfinished |
+- **Voice Receptionist** — inbound call handling, appointment booking, missed-call text-back
+- **AI SDR / Lead-Gen agent** — research, scoring, and personalized outreach
+- **Insurance Claims Intake & Triage** — OCR, fraud scoring, policy lookup, human-in-the-loop approval
+- **Multi-agent orchestration** — a supervisor graph coordinating several agents in one workflow
 
 ## License
 
-MIT
+Copyright &copy; Rohit Nikam. All rights reserved.
+
+This repository is public for portfolio and demonstration purposes. No license is granted to copy, modify, redistribute, or use this code or its agents commercially without explicit written permission.
+
+---
+
+<div align="center"><sub>Built by <a href="https://rohitnikam.tech">Rohit Nikam</a></sub></div>

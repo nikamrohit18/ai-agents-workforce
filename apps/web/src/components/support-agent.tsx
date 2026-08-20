@@ -1,9 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import {
+  FileText,
+  Loader2,
+  Plus,
+  Send,
+  Sparkles,
+  Trash2,
+  UploadCloud,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -18,6 +29,19 @@ type Citation = {
 type Message = { role: "user" | "assistant"; content: string; citations?: Citation[] };
 
 type Doc = { id: string; filename: string; uploaded_at: string; chunk_count: number };
+
+function groupCitations(citations: Citation[]) {
+  const byDoc = new Map<string, { filename: string; refs: number[] }>();
+  citations.forEach((c, i) => {
+    const existing = byDoc.get(c.document_id);
+    if (existing) {
+      existing.refs.push(i + 1);
+    } else {
+      byDoc.set(c.document_id, { filename: c.filename, refs: [i + 1] });
+    }
+  });
+  return Array.from(byDoc.values());
+}
 
 async function streamSupportChat(
   messages: Message[],
@@ -60,8 +84,26 @@ async function streamSupportChat(
   }
 }
 
+function AssistantAvatar() {
+  return (
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
+      <Sparkles className="size-4" />
+    </div>
+  );
+}
+
+function UserAvatar() {
+  const { user } = useUser();
+  if (user?.imageUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={user.imageUrl} alt="" className="size-8 shrink-0 rounded-full" />;
+  }
+  return <div className="size-8 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700" />;
+}
+
 export function SupportAgent() {
   const [docs, setDocs] = useState<Doc[]>([]);
+  const [docsLoaded, setDocsLoaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -72,6 +114,7 @@ export function SupportAgent() {
   async function loadDocs() {
     const res = await fetch("/api/support/documents");
     if (res.ok) setDocs(await res.json());
+    setDocsLoaded(true);
   }
 
   useEffect(() => {
@@ -89,7 +132,9 @@ export function SupportAgent() {
         toast.error(data.detail ?? "Upload failed");
         return;
       }
-      toast.success(`Indexed ${data.filename} (${data.chunk_count} chunks)`);
+      toast.success(`Indexed ${data.filename}`, {
+        description: `${data.chunk_count} chunk${data.chunk_count === 1 ? "" : "s"} embedded and ready to search.`,
+      });
       await loadDocs();
     } catch {
       toast.error("Upload failed - is the agent backend running?");
@@ -148,102 +193,144 @@ export function SupportAgent() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 p-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Customer Support</h1>
-        <p className="text-sm text-zinc-500">
-          Upload documents, then ask questions. Answers are grounded only in what
-          you upload - no outside knowledge, every answer cites its source.
-        </p>
-      </div>
-
-      <Card className="gap-3 p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Documents</span>
+    <div className="flex flex-1 overflow-hidden">
+      {/* Documents sidebar */}
+      <aside className="hidden w-72 shrink-0 flex-col border-r bg-muted/30 sm:flex">
+        <div className="flex items-center justify-between border-b p-4">
           <div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.txt,.md"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+            <h2 className="text-sm font-semibold">Knowledge base</h2>
+            <p className="text-xs text-zinc-500">{docs.length} document{docs.length === 1 ? "" : "s"}</p>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.txt,.md"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+          />
+          <Button
+            size="icon-sm"
+            variant="outline"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Upload document"
+          >
+            {uploading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+          </Button>
+        </div>
+
+        <ScrollArea className="flex-1">
+          {docsLoaded && docs.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+              <UploadCloud className="size-6 text-zinc-400" />
+              <p className="text-xs text-zinc-500">
+                Upload a PDF or text file to start grounding answers in your own content.
+              </p>
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-0.5 p-2">
+              {docs.map((doc) => (
+                <li
+                  key={doc.id}
+                  className="group flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                >
+                  <FileText className="size-4 shrink-0 text-zinc-400" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate" title={doc.filename}>
+                      {doc.filename}
+                    </p>
+                    <p className="text-xs text-zinc-500">{doc.chunk_count} chunks</p>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(doc.id)}
+                    className="shrink-0 text-zinc-400 opacity-0 hover:text-destructive group-hover:opacity-100"
+                    aria-label={`Delete ${doc.filename}`}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ScrollArea>
+      </aside>
+
+      {/* Chat */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b px-6 py-4">
+          <h1 className="text-lg font-semibold tracking-tight">Customer Support</h1>
+          <p className="text-sm text-zinc-500">
+            Answers are grounded only in your uploaded documents, with citations - never
+            outside knowledge.
+          </p>
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center gap-2 py-16 text-center text-zinc-500">
+                <Sparkles className="size-6" />
+                <p className="text-sm">Ask something about your uploaded documents.</p>
+              </div>
+            )}
+            {messages.map((m, i) => {
+              const isLast = i === messages.length - 1;
+              const groups = m.citations ? groupCitations(m.citations) : [];
+              return (
+                <div key={i} className="flex items-start gap-3">
+                  {m.role === "assistant" ? <AssistantAvatar /> : <UserAvatar />}
+                  <div className="min-w-0 flex-1">
+                    {m.content ? (
+                      m.role === "assistant" ? (
+                        <div className="prose-sm max-w-none text-sm leading-relaxed [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_strong]:font-semibold [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-sm">{m.content}</p>
+                      )
+                    ) : isStreaming && isLast ? (
+                      <div className="flex gap-1 py-1">
+                        <span className="size-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:-0.3s]" />
+                        <span className="size-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:-0.15s]" />
+                        <span className="size-1.5 animate-bounce rounded-full bg-zinc-400" />
+                      </div>
+                    ) : null}
+                    {groups.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {groups.map((g) => (
+                          <Badge key={g.filename} variant="secondary" className="gap-1 text-xs font-normal">
+                            <FileText className="size-3" />
+                            {g.filename}
+                            <span className="text-zinc-400">
+                              [{g.refs.join(", ")}]
+                            </span>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={bottomRef} />
+          </div>
+        </ScrollArea>
+
+        <div className="border-t p-4">
+          <div className="mx-auto flex max-w-2xl gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              placeholder="Ask about your documents..."
+              disabled={isStreaming}
+              className="h-10"
             />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading ? "Uploading..." : "Upload"}
+            <Button onClick={handleSend} disabled={isStreaming} size="icon" className="size-10 shrink-0">
+              <Send className="size-4" />
             </Button>
           </div>
         </div>
-        {docs.length === 0 ? (
-          <p className="text-sm text-zinc-500">No documents yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {docs.map((doc) => (
-              <li key={doc.id} className="flex items-center justify-between text-sm">
-                <span>
-                  {doc.filename}{" "}
-                  <span className="text-zinc-400">({doc.chunk_count} chunks)</span>
-                </span>
-                <button
-                  onClick={() => handleDelete(doc.id)}
-                  className="text-zinc-400 hover:text-destructive"
-                  aria-label={`Delete ${doc.filename}`}
-                >
-                  &times;
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <Card className="flex flex-1 flex-col overflow-hidden p-0">
-        <ScrollArea className="flex-1 p-4">
-          {messages.length === 0 && (
-            <p className="text-sm text-zinc-500">Ask something about your uploaded documents.</p>
-          )}
-          <div className="flex flex-col gap-3">
-            {messages.map((m, i) => (
-              <div key={i} className={m.role === "user" ? "ml-auto max-w-[85%]" : "mr-auto max-w-[85%]"}>
-                <div
-                  className={
-                    m.role === "user"
-                      ? "rounded-lg bg-foreground px-3 py-2 text-sm text-background"
-                      : "rounded-lg bg-zinc-100 px-3 py-2 text-sm dark:bg-zinc-800"
-                  }
-                >
-                  {m.content || (isStreaming && i === messages.length - 1 ? "…" : "")}
-                </div>
-                {m.citations && m.citations.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {m.citations.map((c, ci) => (
-                      <Badge key={ci} variant="secondary" className="text-xs">
-                        [{ci + 1}] {c.filename}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <div ref={bottomRef} />
-        </ScrollArea>
-      </Card>
-      <div className="flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Ask about your documents..."
-          disabled={isStreaming}
-        />
-        <Button onClick={handleSend} disabled={isStreaming}>
-          Send
-        </Button>
       </div>
     </div>
   );
