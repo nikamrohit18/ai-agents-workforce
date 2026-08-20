@@ -12,7 +12,7 @@ export default function DashboardLayout({
         <Link href="/" className="font-semibold tracking-tight">
           AI Agents Workforce
         </Link>
-        <UserButton afterSignOutUrl="/" />
+        <UserButton />
       </header>
       <main className="flex flex-1 flex-col">{children}</main>
     </div>

@@ -4,6 +4,10 @@ A shared platform ("kernel") for shipping production-grade AI agents, one at a t
 
 Built as a portfolio + freelance product line: each agent ships polished, deployed, and documented well enough to (a) show a recruiter and (b) sell to a client.
 
+**Live:**
+- Frontend: https://web-rose-omega-72.vercel.app
+- Backend API: https://api-indol-nu-61.vercel.app/health
+
 ## Architecture
 
 ```mermaid
@@ -17,12 +21,14 @@ flowchart LR
     API --- Redis[(Upstash Redis)]
 ```
 
-- **Frontend**: Next.js 16 (App Router, Turbopack), TypeScript, Tailwind, shadcn/ui (Base UI), Clerk for auth. Deployed on Vercel.
-- **API layer**: FastAPI. Verifies the caller is authenticated, then proxies to the agent backend and streams the response back over SSE.
+- **Frontend**: Next.js 16 (App Router, Turbopack), TypeScript, Tailwind, shadcn/ui (Base UI), Clerk for auth. Deployed as a Vercel Function.
+- **API layer**: FastAPI, also deployed as a Vercel Function (Fluid Compute, Python runtime) — no separate backend host needed at this scale. Verifies the caller is authenticated, then proxies to the agent backend and streams the response back over SSE.
 - **Agent orchestration**: LangGraph. Every agent is a compiled graph; this repo's first agent (`echo`) is a one-node walking-skeleton graph proving the plumbing works end to end.
 - **LLM access**: LiteLLM as the provider gateway, so agents aren't hard-wired to one vendor.
 - **Data**: Neon Postgres (serverless) for persistent state, Upstash Redis for memory/cache/rate-limiting.
 - **Auth**: Clerk, provisioned via the Vercel Marketplace, protecting both pages (`proxy.ts`) and API routes.
+
+> Originally planned to split the backend onto Railway. Railway's free trial had expired by the time we deployed, and rather than add billing there, the FastAPI app moved onto Vercel's Python runtime instead — one platform, one bill, and it has enough headroom (300s timeout, WebSocket support, 5GB package limit) for everything through the RAG and voice agents. Revisit a dedicated host only if an agent needs a real persistent worker (e.g. Celery for long-running outreach sequences).
 
 ## Repo structure
 
@@ -64,8 +70,8 @@ Prefer containers? `docker compose -f infra/docker-compose.yml up` runs Postgres
 - [x] Postgres (Neon) and Redis (Upstash) provisioned and connected
 - [x] FastAPI + LangGraph backend with a real streamed SSE agent response
 - [x] Next.js chat UI consuming the stream end to end (verified in-browser, not just compiled)
-- [ ] CI/CD (GitHub Actions)
-- [ ] Deployed to production (Vercel + Railway)
+- [x] Deployed to production (both apps on Vercel) — verified with a real sign-up + live chat, not just a green build
+- [ ] Auto-deploy on push — the Vercel CLI's `git connect` hit a monorepo detection quirk; connect each project (`web`, `api`) to this repo manually under **Project Settings -> Git** in the Vercel dashboard, then set **Root Directory** to `apps/web` / `apps/api` respectively. Two minutes, not worth CLI-fighting further.
 - [ ] First real agent (Customer Support RAG)
 
 ## Roadmap (full-time pace, ~8-9h/day)
@@ -74,7 +80,7 @@ This is the honest version, not the marketing version. At sustained full-time ef
 
 | Weeks | Deliverable | Why this one, why now |
 |---|---|---|
-| 1 | Finish the kernel: CI/CD, Docker verified, deploy to Vercel + Railway, tests skeleton | Nothing else ships until the platform itself is live |
+| 1 | Finish the kernel: connect Git for auto-deploy, tests skeleton, LLM key wired in prod | Kernel is already live (see Status) — this closes the remaining gaps before agent work starts |
 | 2 | **Customer Support RAG agent** — PDF ingestion, hybrid search + rerank, citations, escalation, feedback loop | Table stakes; proves RAG competence; first sellable Upwork/Fiverr template |
 | 3-4 | **Voice Receptionist + missed-call text-back** — Twilio, Deepgram STT, Calendar booking, SMS confirmation | Highest-$ freelance category right now (SMB clinics/salons/contractors pay $99-299/mo for this today) |
 | 5-6 | **AI SDR / Lead-Gen agent** — research, scoring, personalized outreach, HubSpot sync, CSV export | Real B2B budget line; demonstrates multi-step agent chains, not just chat |
