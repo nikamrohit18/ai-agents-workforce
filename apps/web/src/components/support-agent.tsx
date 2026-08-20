@@ -9,6 +9,7 @@ import {
   Loader2,
   Plus,
   Send,
+  ShieldCheck,
   Sparkles,
   Trash2,
   UploadCloud,
@@ -86,7 +87,7 @@ async function streamSupportChat(
 
 function AssistantAvatar() {
   return (
-    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-violet-400 text-primary-foreground shadow-[0_0_0_1px_var(--border)]">
       <Sparkles className="size-4" />
     </div>
   );
@@ -96,9 +97,15 @@ function UserAvatar() {
   const { user } = useUser();
   if (user?.imageUrl) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={user.imageUrl} alt="" className="size-8 shrink-0 rounded-full" />;
+    return (
+      <img
+        src={user.imageUrl}
+        alt=""
+        className="size-8 shrink-0 rounded-full ring-2 ring-primary/25"
+      />
+    );
   }
-  return <div className="size-8 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-700" />;
+  return <div className="size-8 shrink-0 rounded-full bg-muted ring-2 ring-primary/25" />;
 }
 
 export function SupportAgent() {
@@ -195,11 +202,13 @@ export function SupportAgent() {
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* Documents sidebar */}
-      <aside className="hidden w-72 shrink-0 flex-col border-r bg-muted/30 sm:flex">
-        <div className="flex items-center justify-between border-b p-4">
+      <aside className="hidden w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar sm:flex">
+        <div className="flex items-center justify-between border-b border-sidebar-border p-4">
           <div>
-            <h2 className="text-sm font-semibold">Knowledge base</h2>
-            <p className="text-xs text-zinc-500">{docs.length} document{docs.length === 1 ? "" : "s"}</p>
+            <h2 className="text-sm font-semibold text-sidebar-foreground">Knowledge base</h2>
+            <p className="text-xs text-muted-foreground">
+              {docs.length} document{docs.length === 1 ? "" : "s"}
+            </p>
           </div>
           <input
             ref={fileInputRef}
@@ -210,7 +219,6 @@ export function SupportAgent() {
           />
           <Button
             size="icon-sm"
-            variant="outline"
             disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
             aria-label="Upload document"
@@ -221,9 +229,11 @@ export function SupportAgent() {
 
         <ScrollArea className="flex-1">
           {docsLoaded && docs.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
-              <UploadCloud className="size-6 text-zinc-400" />
-              <p className="text-xs text-zinc-500">
+            <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+              <div className="flex size-11 items-center justify-center rounded-full bg-primary/10">
+                <UploadCloud className="size-5 text-primary" />
+              </div>
+              <p className="text-xs text-muted-foreground">
                 Upload a PDF or text file to start grounding answers in your own content.
               </p>
             </div>
@@ -232,18 +242,20 @@ export function SupportAgent() {
               {docs.map((doc) => (
                 <li
                   key={doc.id}
-                  className="group flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
+                  className="group flex items-center gap-2 rounded-md px-2 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent"
                 >
-                  <FileText className="size-4 shrink-0 text-zinc-400" />
+                  <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <FileText className="size-3.5" />
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate" title={doc.filename}>
                       {doc.filename}
                     </p>
-                    <p className="text-xs text-zinc-500">{doc.chunk_count} chunks</p>
+                    <p className="text-xs text-muted-foreground">{doc.chunk_count} chunks</p>
                   </div>
                   <button
                     onClick={() => handleDelete(doc.id)}
-                    className="shrink-0 text-zinc-400 opacity-0 hover:text-destructive group-hover:opacity-100"
+                    className="shrink-0 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
                     aria-label={`Delete ${doc.filename}`}
                   >
                     <Trash2 className="size-3.5" />
@@ -256,54 +268,71 @@ export function SupportAgent() {
       </aside>
 
       {/* Chat */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="border-b px-6 py-4">
-          <h1 className="text-lg font-semibold tracking-tight">Customer Support</h1>
-          <p className="text-sm text-zinc-500">
-            Answers are grounded only in your uploaded documents, with citations - never
-            outside knowledge.
-          </p>
+      <div className="flex flex-1 flex-col overflow-hidden bg-background">
+        <div className="flex items-center gap-3 border-b border-border px-6 py-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold tracking-tight">Customer Support</h1>
+              <Badge variant="secondary" className="gap-1 text-[10px] font-medium">
+                <ShieldCheck className="size-3" />
+                Grounded
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Answers are grounded only in your uploaded documents, with citations - never
+              outside knowledge.
+            </p>
+          </div>
         </div>
 
         <ScrollArea className="flex-1">
           <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
             {messages.length === 0 && (
-              <div className="flex flex-col items-center gap-2 py-16 text-center text-zinc-500">
-                <Sparkles className="size-6" />
-                <p className="text-sm">Ask something about your uploaded documents.</p>
+              <div className="flex flex-col items-center gap-3 py-20 text-center">
+                <div className="flex size-12 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-violet-400/10">
+                  <Sparkles className="size-5 text-primary" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Ask something about your uploaded documents.
+                </p>
               </div>
             )}
             {messages.map((m, i) => {
               const isLast = i === messages.length - 1;
               const groups = m.citations ? groupCitations(m.citations) : [];
+              const isUser = m.role === "user";
               return (
-                <div key={i} className="flex items-start gap-3">
-                  {m.role === "assistant" ? <AssistantAvatar /> : <UserAvatar />}
-                  <div className="min-w-0 flex-1">
+                <div key={i} className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
+                  {isUser ? <UserAvatar /> : <AssistantAvatar />}
+                  <div className={`flex min-w-0 flex-1 flex-col ${isUser ? "items-end" : "items-start"}`}>
                     {m.content ? (
-                      m.role === "assistant" ? (
-                        <div className="prose-sm max-w-none text-sm leading-relaxed [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_strong]:font-semibold [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                      isUser ? (
+                        <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground shadow-sm">
+                          {m.content}
                         </div>
                       ) : (
-                        <p className="text-sm">{m.content}</p>
+                        <div className="max-w-[85%] rounded-2xl rounded-tl-sm border border-border bg-card px-4 py-3 text-sm leading-relaxed shadow-sm [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_strong]:font-semibold [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        </div>
                       )
                     ) : isStreaming && isLast ? (
-                      <div className="flex gap-1 py-1">
-                        <span className="size-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:-0.3s]" />
-                        <span className="size-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:-0.15s]" />
-                        <span className="size-1.5 animate-bounce rounded-full bg-zinc-400" />
+                      <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-border bg-card px-4 py-3">
+                        <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
+                        <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.15s]" />
+                        <span className="size-1.5 animate-bounce rounded-full bg-primary" />
                       </div>
                     ) : null}
                     {groups.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {groups.map((g) => (
-                          <Badge key={g.filename} variant="secondary" className="gap-1 text-xs font-normal">
-                            <FileText className="size-3" />
+                          <Badge
+                            key={g.filename}
+                            variant="outline"
+                            className="gap-1 border-primary/25 bg-primary/5 text-xs font-normal text-foreground"
+                          >
+                            <FileText className="size-3 text-primary" />
                             {g.filename}
-                            <span className="text-zinc-400">
-                              [{g.refs.join(", ")}]
-                            </span>
+                            <span className="text-muted-foreground">[{g.refs.join(", ")}]</span>
                           </Badge>
                         ))}
                       </div>
@@ -316,17 +345,22 @@ export function SupportAgent() {
           </div>
         </ScrollArea>
 
-        <div className="border-t p-4">
-          <div className="mx-auto flex max-w-2xl gap-2">
+        <div className="border-t border-border bg-background/80 p-4 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-2xl items-center gap-2 rounded-full border border-border bg-card p-1.5 shadow-sm transition-shadow focus-within:border-primary/40 focus-within:shadow-[0_0_0_3px_oklch(0.65_0.22_264.376/0.15)]">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Ask about your documents..."
               disabled={isStreaming}
-              className="h-10"
+              className="h-9 rounded-full border-none bg-transparent shadow-none focus-visible:ring-0"
             />
-            <Button onClick={handleSend} disabled={isStreaming} size="icon" className="size-10 shrink-0">
+            <Button
+              onClick={handleSend}
+              disabled={isStreaming}
+              size="icon"
+              className="size-9 shrink-0 rounded-full"
+            >
               <Send className="size-4" />
             </Button>
           </div>
