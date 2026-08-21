@@ -15,11 +15,21 @@ Data layer: Neon Postgres with `pgvector` (HNSW index) for RAG retrieval, Upstas
 
 **Kernel-per-agent model:** auth, DB access, and the SSE streaming pattern are built once in the kernel. A new agent = a new LangGraph graph under `apps/api/app/agents/`, a new API route under `apps/api/app/api/`, and a new page/component under `apps/web/src/app/dashboard/`, registered in `apps/web/src/lib/agents.ts` (drives both the sidebar nav and the dashboard hub grid).
 
-## Shipped agents
+## Domain plan
 
-- **Customer Support RAG** (`apps/api/app/agents/support_agent.py`, `apps/web/src/components/support-agent.tsx`) — retrieve → generate graph. Upload PDF/text → pypdf extraction → `langchain-text-splitters` chunking → OpenAI `text-embedding-3-small` embeddings → pgvector cosine retrieval → LLM generation with `[n]` citation markers. Citations are only surfaced for markers the model's own output actually contains (parsed via regex post-generation) — retrieval always returns its closest matches even for greetings/off-topic messages, so never show citations unconditionally.
+Currently deployed on a Vercel preview domain. Long-term: point the platform at `agents.rohitnikam.tech`, a subdomain of Rohit's existing portfolio site `rohitnikam.tech` (Hostinger VPS, which also hosts `twin.rohitnikam.tech`). The `/dashboard` page (`apps/web/src/app/dashboard/page.tsx`) is already built as the intended hub for that subdomain — a grid of cards, one per agent, live/coming-soon badges — just not yet pointed at the custom domain.
 
-Next agent floated but **not yet started**: Voice Receptionist. Don't start a new agent without an explicit go-ahead.
+## Agent roadmap
+
+Full roadmap is 5 agents, defined in `apps/web/src/lib/agents.ts` (source of truth — keep this section in sync with it):
+
+1. **Customer Support** — RAG agent grounded in uploaded documents, with citations. **LIVE / shipped.** (`apps/api/app/agents/support_agent.py`, `apps/web/src/components/support-agent.tsx`) — retrieve → generate graph. Upload PDF/text → pypdf extraction → `langchain-text-splitters` chunking → OpenAI `text-embedding-3-small` embeddings → pgvector cosine retrieval → LLM generation with `[n]` citation markers. Citations are only surfaced for markers the model's own output actually contains (parsed via regex post-generation) — retrieval always returns its closest matches even for greetings/off-topic messages, so never show citations unconditionally. Full CRUD verified in local dev and production.
+2. **Voice Receptionist** — Answers calls, books appointments, texts back missed calls. **Next up**, not started yet.
+3. **Lead-Gen SDR** — Research, score, and draft personalized outreach. Queued, not started.
+4. **Insurance Claims Triage** — OCR intake, fraud scoring, policy lookup, human-in-loop approval. Queued, not started.
+5. **Multi-Agent Orchestrator** — Reception → Sales → CRM → Calendar → Analytics, supervised. A supervisor/pipeline layer composing the other 4 agents, not an independent one — build last.
+
+Don't start a new agent without an explicit go-ahead, and update the status above (and `agents.ts`) as each one ships.
 
 ## Conventions that matter here
 
