@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -229,7 +228,7 @@ export function SupportAgent() {
           </Button>
         </div>
 
-        <ScrollArea className="flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {!docsLoaded ? (
             <div className="flex flex-col gap-2 p-2">
               {[0, 1, 2].map((i) => (
@@ -278,7 +277,7 @@ export function SupportAgent() {
               ))}
             </ul>
           )}
-        </ScrollArea>
+        </div>
       </aside>
 
       {/* Chat */}
@@ -299,7 +298,7 @@ export function SupportAgent() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
             {messages.length === 0 && (
               <div className="flex flex-col items-center gap-3 py-20 text-center">
@@ -357,7 +356,7 @@ export function SupportAgent() {
             })}
             <div ref={bottomRef} />
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="border-t border-border bg-background/80 p-4 backdrop-blur-sm">
           <div className="mx-auto flex max-w-2xl items-center gap-2 rounded-full border border-border bg-card p-1.5 shadow-sm transition-shadow focus-within:border-primary/40 focus-within:shadow-[0_0_0_3px_oklch(0.65_0.22_264.376/0.15)]">
