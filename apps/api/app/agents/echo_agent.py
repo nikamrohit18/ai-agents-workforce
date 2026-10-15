@@ -44,19 +44,21 @@ async def _respond(state: AgentState) -> AgentState:
     settings = get_settings()
     writer = get_stream_writer()
 
-    if not settings.has_llm_key:
+    provider = settings.llm_provider
+    if not provider:
         for word in NO_KEY_FALLBACK.split(" "):
             writer({"token": word + " "})
         return {"messages": [*state["messages"], {"role": "assistant", "content": NO_KEY_FALLBACK}]}
 
+    model, api_key = provider
     llm_messages = [{"role": "system", "content": SYSTEM_PROMPT}, *state["messages"]]
     full_reply = ""
 
     response = await litellm.acompletion(
-        model=settings.llm_model,
+        model=model,
         messages=llm_messages,
         stream=True,
-        api_key=settings.anthropic_api_key or settings.openai_api_key,
+        api_key=api_key,
     )
     async for chunk in response:
         delta = chunk.choices[0].delta.content

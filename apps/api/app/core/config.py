@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
     llm_model: str = "claude-sonnet-4-5-20250929"
+    openai_model: str = "gpt-4.1-mini"
 
     clerk_secret_key: str | None = None
 
@@ -32,6 +33,23 @@ class Settings(BaseSettings):
     @property
     def has_llm_key(self) -> bool:
         return bool(self.anthropic_api_key or self.openai_api_key)
+
+    @property
+    def llm_provider(self) -> tuple[str, str] | None:
+        """(model, api_key) for whichever LLM provider has a key configured.
+
+        Anthropic (llm_model) is preferred when both are set; OpenAI
+        (openai_model) is the fallback. Every agent resolves its chat model
+        through this one property instead of each hard-wiring its own
+        provider/model/key choice - litellm.acompletion() then handles the
+        actual provider call, so an agent never needs to know which vendor
+        is live, only the (model, api_key) pair to pass through.
+        """
+        if self.anthropic_api_key:
+            return self.llm_model, self.anthropic_api_key
+        if self.openai_api_key:
+            return self.openai_model, self.openai_api_key
+        return None
 
     @property
     def has_voice_config(self) -> bool:

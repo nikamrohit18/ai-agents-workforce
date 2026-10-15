@@ -61,9 +61,9 @@ BOOK_APPOINTMENT_TOOL = {
 }
 
 NO_KEY_FALLBACK = (
-    "OPENAI_API_KEY isn't configured yet, so I'm streaming this canned reply "
-    "instead of a real model response. Set OPENAI_API_KEY in apps/api/.env and "
-    "restart the server to talk to a real model."
+    "No LLM provider key is configured yet, so I'm streaming this canned reply "
+    "instead of a real model response. Set ANTHROPIC_API_KEY or OPENAI_API_KEY "
+    "in apps/api/.env and restart the server to talk to a real model."
 )
 
 
@@ -86,7 +86,8 @@ async def _generate(state: VoiceState) -> VoiceState:
     settings = get_settings()
     writer = get_stream_writer()
 
-    if not settings.openai_api_key:
+    provider = settings.llm_provider
+    if not provider:
         for word in NO_KEY_FALLBACK.split(" "):
             writer({"token": word + " "})
         return {
@@ -95,6 +96,7 @@ async def _generate(state: VoiceState) -> VoiceState:
             "tool_call": None,
         }
 
+    model, api_key = provider
     business_tz = ZoneInfo(settings.voice_business_timezone)
     llm_messages = [{"role": "system", "content": _system_prompt(business_tz)}, *state["messages"]]
     full_reply = ""
@@ -103,11 +105,11 @@ async def _generate(state: VoiceState) -> VoiceState:
     tool_call_args = ""
 
     response = await litellm.acompletion(
-        model="gpt-4.1-mini",
+        model=model,
         messages=llm_messages,
         tools=[BOOK_APPOINTMENT_TOOL],
         stream=True,
-        api_key=settings.openai_api_key,
+        api_key=api_key,
     )
     async for chunk in response:
         delta = chunk.choices[0].delta

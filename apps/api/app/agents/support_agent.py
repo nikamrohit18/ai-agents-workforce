@@ -40,10 +40,15 @@ NO_DOCUMENTS_MESSAGE = (
     "not general knowledge."
 )
 
-NO_KEY_FALLBACK = (
-    "OPENAI_API_KEY isn't configured yet, so I can't embed your question or "
-    "generate a grounded answer. Set OPENAI_API_KEY in apps/api's environment "
-    "and retry."
+NO_EMBEDDINGS_KEY_FALLBACK = (
+    "OPENAI_API_KEY isn't configured yet, so I can't embed your question to search "
+    "your documents - retrieval only runs through OpenAI's embeddings, regardless of "
+    "which provider answers you. Set OPENAI_API_KEY in apps/api's environment and retry."
+)
+
+NO_LLM_KEY_FALLBACK = (
+    "No LLM provider key is configured yet, so I can't generate a grounded answer. "
+    "Set ANTHROPIC_API_KEY or OPENAI_API_KEY in apps/api's environment and retry."
 )
 
 
@@ -74,8 +79,17 @@ async def _generate(state: SupportState) -> SupportState:
     settings = get_settings()
     writer = get_stream_writer()
 
+    provider = settings.llm_provider
+    if not provider:
+        for word in NO_LLM_KEY_FALLBACK.split(" "):
+            writer({"token": word + " "})
+        return state
+
     if not settings.openai_api_key:
-        for word in NO_KEY_FALLBACK.split(" "):
+        # _retrieve already skipped (no embeddings key), so sources is empty for
+        # that reason specifically - distinguish it from "no documents uploaded"
+        # below, which would otherwise read as misleading here.
+        for word in NO_EMBEDDINGS_KEY_FALLBACK.split(" "):
             writer({"token": word + " "})
         return state
 
@@ -91,12 +105,13 @@ async def _generate(state: SupportState) -> SupportState:
     system_prompt = SYSTEM_PROMPT.format(sources=sources_block)
     llm_messages = [{"role": "system", "content": system_prompt}, *state["messages"]]
 
+    model, api_key = provider
     full_reply = ""
     response = await litellm.acompletion(
-        model="gpt-4.1-mini",
+        model=model,
         messages=llm_messages,
         stream=True,
-        api_key=settings.openai_api_key,
+        api_key=api_key,
     )
     async for chunk in response:
         delta = chunk.choices[0].delta.content
