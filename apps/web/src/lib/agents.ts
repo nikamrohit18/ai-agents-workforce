@@ -26,7 +26,7 @@ export const agents: AgentConfig[] = [
   {
     name: "Voice Receptionist",
     description: "Answers calls, books appointments, texts back missed calls.",
-    href: "#",
+    href: "/dashboard/voice",
     status: "soon",
     icon: Phone,
   },
